@@ -2,16 +2,15 @@ package Documentos;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellEditor;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartFrame;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.ui.ApplicationFrame;
 
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -27,6 +26,7 @@ public class GraficaDepartamentosGUI extends JFrame {
     private List<String> meses;
     private List<String> departamentos;
     private int[][] ventas;
+    private String rutaArchivo;
 
     private JTable tabla;
     private JComboBox<String> comboBoxMeses;
@@ -81,7 +81,7 @@ public class GraficaDepartamentosGUI extends JFrame {
         DefaultTableModel model = new DefaultTableModel() {
             @Override
             public boolean isCellEditable(int row, int column) {
-                // Permitir editar todas las celdas excepto la primera columna (departamentos)
+                // Permitir la edición de todas las celdas excepto la primera columna
                 return column != 0;
             }
         };
@@ -103,7 +103,20 @@ public class GraficaDepartamentosGUI extends JFrame {
         }
 
         tabla.setModel(model);
-        tabla.setDefaultEditor(Object.class, new NumericCellEditor()); // Utilizar el editor personalizado
+
+        // Agregar un listener para detectar cambios en la tabla
+        model.addTableModelListener(new TableModelListener() {
+            @Override
+            public void tableChanged(TableModelEvent e) {
+                int row = e.getFirstRow();
+                int column = e.getColumn();
+                if (column != 0) {
+                    Object value = model.getValueAt(row, column);
+                    ventas[row][column - 1] = Integer.parseInt(value.toString());
+                    guardarDatosEmpresa(rutaArchivo); // Guardar los cambios en el archivo
+                }
+            }
+        });
     }
 
     private void cargarMeses() {
@@ -113,7 +126,9 @@ public class GraficaDepartamentosGUI extends JFrame {
         }
     }
 
-    private void leerDatosEmpresa(String rutaArchivo) {
+    private void leerDatosEmpresa(String rutaArchivo) throws IOException {
+        this.rutaArchivo = rutaArchivo; // Guardar la ruta del archivo seleccionado
+
         try (BufferedReader br = new BufferedReader(new FileReader(rutaArchivo))) {
             String linea;
             int fila = 0;
@@ -132,8 +147,6 @@ public class GraficaDepartamentosGUI extends JFrame {
                 }
                 fila++;
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
@@ -189,6 +202,7 @@ public class GraficaDepartamentosGUI extends JFrame {
         }
     }
 
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
@@ -196,36 +210,22 @@ public class GraficaDepartamentosGUI extends JFrame {
 
                 String rutaArchivo = gui.seleccionarArchivo();
                 if (rutaArchivo != null) {
-                    gui.leerDatosEmpresa(rutaArchivo);
-                    gui.cargarDatosTabla();
-                    gui.cargarMeses();
-                    gui.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                    gui.setSize(600, 400);
-                    gui.setLocationRelativeTo(null);
-                    gui.setVisible(true);
+                    try {
+                        gui.leerDatosEmpresa(rutaArchivo);
+                        gui.cargarDatosTabla();
+                        gui.cargarMeses();
+                        gui.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                        gui.setSize(600, 400);
+                        gui.setLocationRelativeTo(null);
+                        gui.setVisible(true);
+                    } catch (IOException e) {
+                        JOptionPane.showMessageDialog(null, "Error al leer el archivo: " + e.getMessage());
+                    }
                 } else {
                     JOptionPane.showMessageDialog(null, "No se ha seleccionado un archivo válido.");
                 }
             }
         });
-    }
-
-    private class NumericCellEditor extends DefaultCellEditor {
-        public NumericCellEditor() {
-            super(new JTextField());
-        }
-
-        @Override
-        public boolean stopCellEditing() {
-            try {
-                String value = (String) getCellEditorValue();
-                Integer.parseInt(value); // Verificar si el valor ingresado es numérico
-                return super.stopCellEditing();
-            } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(null, "Solo se aceptan números. Intente nuevamente.");
-                return false;
-            }
-        }
     }
 }
 
